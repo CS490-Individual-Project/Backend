@@ -8,8 +8,6 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-print(os.getenv('MYSQL_DB_PASSWORD'))
-
 conn = mysql.connector.connect(
     host="localhost",
     user="root",
