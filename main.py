@@ -23,7 +23,7 @@ Landing Page (index.html)
 '''
 #As a user I want to view top 5 rented films of all times
 @app.route('/api/top5rented', methods=['GET'])
-def get_top5rented():
+def get_top_5_rented():
     #run sql query
     cursor.execute("""
         select f.film_id, f.title, count(f.film_id) as rental_count
@@ -47,32 +47,40 @@ def get_top5rented():
     return jsonify(films)
 
 #As a user I want to be able to click on any of the top 5 films and view its details
-
+#TODO
 
 #As a user I want to be able to view top 5 actors that are part of films I have in the store
-
+@app.route('/api/top5actors', methods=['GET'])
+def get_top_5_actors():
+    pass
 
 #As a user I want to be able to view the actor’s details and view their top 5 rented films
-
+#TODO
 
 '''
 Films Page (films.html)
 '''
 #As a user I want to be able to search a film by name of film, name of an actor, or genre of the film
-
+@app.route('/api/searchfilms', methods=['GET'])
+def search_films():
+    pass
 
 #As a user I want to be able to view details of the film
-
+@app.route('/api/get_filmdetails', methods=['GET'])
+def get_film_details():
+    pass
 
 #As a user I want to be able to rent a film out to a customer
-
+@app.route('/api/rentfilm', methods=['PUT'])
+def rent_film():
+    pass
 
 '''
 Customer Page (customer.html)
 '''
 #As a user I want to view a list of all customers (Pref. using pagination)
 @app.route('/api/allcustomers', methods=['GET'])
-def get_allcustomers():
+def get_all_customers():
     #run sql query
     cursor.execute("""select * from sakila.customer;""")
 
@@ -95,23 +103,34 @@ def get_allcustomers():
     return jsonify(customers)
 
 #As a user I want the ability to filter/search customers by their customer id, first name or last name.
-
+@app.route('/api/searchcustomers', methods=['GET'])
+def search_customers():
+    pass
 
 #As a user I want to be able to add a new customer
-
+@app.route('/api/add customer', methods=['PUT'])
+def add_customer():
+    pass
 
 #As a user I want to be able to edit a customer’s details
-
+@app.route('/api/editcustomer', methods=['PUT'])
+def edit_customer():
+    pass
 
 #As a user I want to be able to delete a customer if they no longer wish to patron at store
-
+@app.route('/api/deletecustomer', methods=['PUT'])
+def delete_customer():
+    pass
 
 #As a user I want to be able to view customer details and see their past and present rental history
-
+@app.route('/api/get_customerdetails', methods=['GET'])
+def get_customer_details():
+    pass
 
 #As a user I want to be able to indicate that a customer has returned a rented movie 
-
-
+@app.route('/api/returnfilm', methods=['PUT'])
+def return_film():
+    pass
 
 
 if __name__ == '__main__':
