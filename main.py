@@ -88,7 +88,7 @@ def get_all_customers():
             'name': row[2] + ' ' + row[3],
             'email': row[4],
             'address': row[5],
-            'active': row[6],
+            'active': row[6] == 1,
             'create_date': row[7],
             'last_update': row[8]
         })
