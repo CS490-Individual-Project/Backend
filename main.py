@@ -23,7 +23,7 @@ Landing Page (index.html)
 '''
 #As a user I want to view top 5 rented films of all times
 @app.route('/api/top5rented', methods=['GET'])
-def get_top5rented():
+def get_top_five_rented():
     #run sql query
     cursor.execute("""
         select f.film_id, f.title, count(f.film_id) as rental_count
@@ -72,7 +72,7 @@ Customer Page (customer.html)
 '''
 #As a user I want to view a list of all customers (Pref. using pagination)
 @app.route('/api/allcustomers', methods=['GET'])
-def get_allcustomers():
+def get_all_customers():
     #run sql query
     cursor.execute("""select * from sakila.customer;""")
 
