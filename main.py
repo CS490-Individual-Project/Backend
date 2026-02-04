@@ -89,8 +89,35 @@ def search_films():
 
 #As a user I want to be able to view details of the film
 @app.route('/api/get_filmdetails', methods=['GET'])
-def get_film_details():
-    
+def get_film_details(film_id):
+    query = """select * from sakila.film where film_id = %s;"""
+
+    #run sql query
+    cursor.execute(query, (film_id))
+
+    #store in results
+    results = cursor.fetchall()
+
+    #process results into json format
+    films = []
+    for row in results:
+        films.append({
+            'description': row[0],
+            'film_id': row[1],
+            'language_id': row[2],
+            'last_update': row[3],
+            'length': row[4],
+            'original_language_id': row[5],
+            'rating': row[6],
+            'release_year': row[7],
+            'rental_duration': row[8],
+            'rental_rate': row[9],
+            'replacement_cost': row[10],
+            'special_features': row[11],
+            'title': row[12]
+        })
+        
+    return jsonify(films)
 
 #As a user I want to be able to rent a film out to a customer
 @app.route('/api/rentfilm', methods=['PUT'])
