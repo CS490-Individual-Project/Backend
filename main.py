@@ -248,8 +248,8 @@ def add_customer():
         
         create_date = data.get('create_date', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
             
-        query = """INSERT INTO sakila.customer (store_id, first_name, last_name, email,
-                    address_id, create_date) VALUES (%s, %s, %s, %s, %s, %s)"""
+        query = """insert into sakila.customer (store_id, first_name, last_name, email,
+                   address_id, create_date) values (%s, %s, %s, %s, %s, %s)"""
 
         cursor.execute(query, (
             data['store_id'],
@@ -279,7 +279,7 @@ def edit_customer():
 @app.route('/api/deletecustomer', methods=['PUT'])
 def delete_customer(customer_id):
     try:
-        query = """DELETE FROM sakila.customer WHERE customer_id = %s;"""
+        query = """delete from sakila.customer where customer_id = %s;"""
 
         cursor.execute(query, (customer_id))
 
