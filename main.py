@@ -84,8 +84,39 @@ Films Page (films.html)
 '''
 #As a user I want to be able to search a film by name of film, name of an actor, or genre of the film
 @app.route('/api/searchfilms', methods=['GET'])
-def search_films():
-    pass
+def search_films(search_term):
+    query = """select * from sakila.films f
+                join sakila.film_actor fa on f.film_id = fa.film_id
+                join sakila.actor a on fa.actor_id = a.actor_id
+                join sakila.film_category fc on f.film_id = fc.film_id
+                join sakila.category c on fc.category_id = c.category_id
+                where f.title = %s
+                or a.first_name = %s
+                or a.last_name = %s
+                or c.name = %s;"""
+
+    cursor.execute(query, (search_term, search_term, search_term, search_term))
+
+    results = cursor.fetchall()
+
+    films = []
+    for row in results:
+        films.append({
+            'film_id': row[0],
+            'title': row[1],
+            'description': row[2],
+            'release_year': row[3],
+            'language_id': row[4],
+            'original_language_id': row[5],
+            'rental_duration': row[6],
+            'rental_rate': row[7],
+            'length': row[8],
+            'replacement_cost': row[9],
+            'rating': row[10],
+            'special_features': row[11],
+            'last_update': row[12],
+        })
+    return jsonify(films)
 
 #As a user I want to be able to view details of the film
 @app.route('/api/get_filmdetails', methods=['GET'])
