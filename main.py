@@ -140,7 +140,8 @@ def get_all_customers():
         customers.append({
             'customer_id': row[0],
             'store_id': row[1],
-            'name': row[2] + ' ' + row[3],
+            'first_name': row[2],
+            'last_name': row[3],
             'email': row[4],
             'address': row[5],
             'active': row[6] == 1,
