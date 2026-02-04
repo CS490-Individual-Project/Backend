@@ -210,10 +210,11 @@ def get_all_customers():
 @app.route('/api/searchcustomers', methods=['GET'])
 def search_customers(search_term):
     query = """select * from sakila.customer
-                where customer_id = %s
-                or first_name = %s
-                or last_name = %s;"""
+                where customer_id like %s
+                or first_name like %s
+                or last_name like %s;"""
 
+    search_term = f"%{search_term}%"
     cursor.execute(query, (search_term, search_term, search_term))
 
     results = cursor.fetchall()
