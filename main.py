@@ -54,7 +54,7 @@ def get_top_five_rented():
 #As a user I want to be able to view top 5 actors that are part of films I have in the store
 @app.route('/api/top5actors', methods=['GET'])
 def get_top_five_actors():
-     #run sql query
+    #run sql query
     cursor.execute("""
         select a.actor_id, a.first_name, a.last_name, count(fa.film_id) as movies
         from sakila.film_actor fa 
@@ -62,19 +62,19 @@ def get_top_five_actors():
         group by a.actor_id 
         order by movies desc limit 5;
     """)
-    
+
     #store in results
     results = cursor.fetchall()
 
     #process results into json format
-    films = []
+    actors = []
     for row in results:
-        films.append({
+        actors.append({
             'actor_id': row[0],
             'name': row[1] + ' ' + row[2],
             'movies': row[3]
         })
-    return jsonify(films)
+    return jsonify(actors)
 
 #As a user I want to be able to view the actor’s details and view their top 5 rented films
 #TODO
@@ -90,7 +90,7 @@ def search_films():
 #As a user I want to be able to view details of the film
 @app.route('/api/get_filmdetails', methods=['GET'])
 def get_film_details():
-    pass
+    
 
 #As a user I want to be able to rent a film out to a customer
 @app.route('/api/rentfilm', methods=['PUT'])
