@@ -23,7 +23,7 @@ cursor = conn.cursor()
 '''
 Landing Page (index.html)
 '''
-#As a user I want to view top 5 rented films of all times
+#Feature 1: As a user I want to view top 5 rented films of all times
 @app.route('/api/top5rented', methods=['GET'])
 def get_top_five_rented():
     #run sql query
@@ -48,10 +48,10 @@ def get_top_five_rented():
         })
     return jsonify(films)
 
-#As a user I want to be able to click on any of the top 5 films and view its details
-#TODO
+#Feature 2: As a user I want to be able to click on any of the top 5 films and view its details
+#Just call get_film_details(film_id) function
 
-#As a user I want to be able to view top 5 actors that are part of films I have in the store
+#Feature 3: As a user I want to be able to view top 5 actors that are part of films I have in the store
 @app.route('/api/top5actors', methods=['GET'])
 def get_top_five_actors():
     #run sql query
@@ -76,13 +76,39 @@ def get_top_five_actors():
         })
     return jsonify(actors)
 
-#As a user I want to be able to view the actor’s details and view their top 5 rented films
-#TODO
+#Feature 4: As a user I want to be able to view the actor’s details and view their top 5 rented films
+@app.route('/api/get_actordetails', methods=['GET'])
+def get_actor_details(actor_id):
+    query = """select actor.actor_id, actor.first_name, actor.last_name, film.title, count(rental.rental_id)
+                from sakila.actor
+                join sakila.film_actor on actor.actor_id = film_actor.actor_id
+                join sakila.film on film_actor.film_id = film.film_id
+                join sakila.inventory on film.film_id = inventory.film_id
+                join sakila.rental on inventory.inventory_id = rental.inventory_id
+                where actor.actor_id = 12
+                group by film.film_id
+                order by count(film.film_id) desc limit 5;
+            """
+
+    #run sql query
+    cursor.execute(query, (actor_id))
+
+    #store in results
+    results = cursor.fetchall()
+
+    #process results into json format
+    actor_details = [{
+        'actor_id': results[0],
+        'first_name': results[1],
+        'last_name': results[2],
+        'title': results[3]
+    }]
+    return jsonify(actor_details)
 
 '''
 Films Page (films.html)
 '''
-#As a user I want to be able to search a film by name of film, name of an actor, or genre of the film
+#Feature 5: As a user I want to be able to search a film by name of film, name of an actor, or genre of the film
 @app.route('/api/searchfilms', methods=['GET'])
 def search_films(search_term):
     query = """select * from sakila.films f
@@ -118,7 +144,7 @@ def search_films(search_term):
         })
     return jsonify(films)
 
-#As a user I want to be able to view details of the film
+#Feature 6: As a user I want to be able to view details of the film
 @app.route('/api/get_filmdetails', methods=['GET'])
 def get_film_details(film_id):
     query = """select * from sakila.film where film_id = %s;"""
@@ -148,7 +174,7 @@ def get_film_details(film_id):
 
     return jsonify(films)
 
-#As a user I want to be able to rent a film out to a customer
+#Feature 7: As a user I want to be able to rent a film out to a customer
 @app.route('/api/rentfilm', methods=['PUT'])
 def rent_film():
     pass
@@ -156,7 +182,7 @@ def rent_film():
 '''
 Customer Page (customer.html)
 '''
-#As a user I want to view a list of all customers (Pref. using pagination)
+#Feature 8: As a user I want to view a list of all customers (Pref. using pagination)
 @app.route('/api/allcustomers', methods=['GET'])
 def get_all_customers():
     #run sql query
@@ -181,7 +207,7 @@ def get_all_customers():
         })
     return jsonify(customers)
 
-#As a user I want the ability to filter/search customers by their customer id, first name or last name.
+#Feature 9: As a user I want the ability to filter/search customers by their customer id, first name or last name.
 @app.route('/api/searchcustomers', methods=['GET'])
 def search_customers(search_term):
     query = """select * from sakila.customer
@@ -207,7 +233,7 @@ def search_customers(search_term):
         })
     return jsonify(customers)
 
-#As a user I want to be able to add a new customer
+#Feature 10: As a user I want to be able to add a new customer
 @app.route('/api/addcustomer', methods=['POST'])
 def add_customer():
     try:
@@ -244,12 +270,12 @@ def add_customer():
         conn.rollback()
         return jsonify({'error': 'Error adding customer. Please try again.'}), 500
 
-#As a user I want to be able to edit a customer’s details
+#Feature 11: As a user I want to be able to edit a customer’s details
 @app.route('/api/editcustomer', methods=['PUT'])
 def edit_customer():
     pass
 
-#As a user I want to be able to delete a customer if they no longer wish to patron at store
+#Feature 12: As a user I want to be able to delete a customer if they no longer wish to patron at store
 @app.route('/api/deletecustomer', methods=['PUT'])
 def delete_customer(customer_id):
     try:
@@ -265,7 +291,7 @@ def delete_customer(customer_id):
         conn.rollback()
         return jsonify({'error': 'Error deleting customer. Please try again.'}), 500
 
-#As a user I want to be able to view customer details and see their past and present rental history
+#Feature 13: As a user I want to be able to view customer details and see their past and present rental history
 @app.route('/api/get_customerdetails', methods=['GET'])
 def get_customer_details(customer_id):
     query = """select * from sakila.film where film_id = %s;"""
@@ -290,7 +316,7 @@ def get_customer_details(customer_id):
     }]
     return jsonify(customer_details)
 
-#As a user I want to be able to indicate that a customer has returned a rented movie 
+#Feature 14: As a user I want to be able to indicate that a customer has returned a rented movie 
 @app.route('/api/returnfilm', methods=['PUT'])
 def return_film():
     pass
