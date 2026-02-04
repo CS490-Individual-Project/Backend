@@ -99,23 +99,21 @@ def get_film_details(film_id):
     results = cursor.fetchall()
 
     #process results into json format
-    films = []
-    for row in results:
-        films.append({
-            'film_id': row[0],
-            'title': row[1],
-            'description': row[2],
-            'release_year': row[3],
-            'language_id': row[4],
-            'original_language_id': row[5],
-            'rental_duration': row[6],
-            'rental_rate': row[7],
-            'length': row[8],
-            'replacement_cost': row[9],
-            'rating': row[10],
-            'special_features': row[11],
-            'last_update': row[12]
-        })
+    films = [{
+        'film_id': results[0],
+        'title': results[1],
+        'description': results[2],
+        'release_year': results[3],
+        'language_id': results[4],
+        'original_language_id': results[5],
+        'rental_duration': results[6],
+        'rental_rate': results[7],
+        'length': results[8],
+        'replacement_cost': results[9],
+        'rating': results[10],
+        'special_features': results[11],
+        'last_update': results[12]
+    }]
 
     return jsonify(films)
 
@@ -177,7 +175,6 @@ def search_customers(search_term):
         })
     return jsonify(customers)
 
-
 #As a user I want to be able to add a new customer
 @app.route('/api/addcustomer', methods=['POST'])
 def add_customer():
@@ -238,8 +235,28 @@ def delete_customer(customer_id):
 
 #As a user I want to be able to view customer details and see their past and present rental history
 @app.route('/api/get_customerdetails', methods=['GET'])
-def get_customer_details():
-    pass
+def get_customer_details(customer_id):
+    query = """select * from sakila.film where film_id = %s;"""
+
+    #run sql query
+    cursor.execute(query, (customer_id))
+
+    #store in results
+    results = cursor.fetchall()
+
+    #process results into json format
+    customer_details = [{
+        'customer_id': results[0],
+        'store_id': results[1],
+        'first_name': results[2],
+        'last_name': results[3],
+        'email': results[4],
+        'address': results[5],
+        'active': results[6] == 1,
+        'create_date': results[7],
+        'last_update': results[8]
+    }]
+    return jsonify(customer_details)
 
 #As a user I want to be able to indicate that a customer has returned a rented movie 
 @app.route('/api/returnfilm', methods=['PUT'])
