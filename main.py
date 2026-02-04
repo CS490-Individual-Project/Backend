@@ -102,21 +102,21 @@ def get_film_details(film_id):
     films = []
     for row in results:
         films.append({
-            'description': row[0],
-            'film_id': row[1],
-            'language_id': row[2],
-            'last_update': row[3],
-            'length': row[4],
+            'film_id': row[0],
+            'title': row[1],
+            'description': row[2],
+            'release_year': row[3],
+            'language_id': row[4],
             'original_language_id': row[5],
-            'rating': row[6],
-            'release_year': row[7],
-            'rental_duration': row[8],
-            'rental_rate': row[9],
-            'replacement_cost': row[10],
+            'rental_duration': row[6],
+            'rental_rate': row[7],
+            'length': row[8],
+            'replacement_cost': row[9],
+            'rating': row[10],
             'special_features': row[11],
-            'title': row[12]
+            'last_update': row[12]
         })
-        
+
     return jsonify(films)
 
 #As a user I want to be able to rent a film out to a customer
@@ -153,8 +153,30 @@ def get_all_customers():
 
 #As a user I want the ability to filter/search customers by their customer id, first name or last name.
 @app.route('/api/searchcustomers', methods=['GET'])
-def search_customers():
-    pass
+def search_customers(search_term):
+    query = """select * from sakila.customer
+                where customer_id = %s
+                or first_name = %s
+                or last_name = %s;"""
+
+    cursor.execute(query, (search_term, search_term, search_term))
+
+    results = cursor.fetchall()
+
+    customers = []
+    for row in results:
+        customers.append({
+            'customer_id': row[0],
+            'store_id': row[1],
+            'name': row[2] + ' ' + row[3],
+            'email': row[4],
+            'address': row[5],
+            'active': row[6] == 1,
+            'create_date': row[7],
+            'last_update': row[8]
+        })
+    return jsonify(customers)
+
 
 #As a user I want to be able to add a new customer
 @app.route('/api/addcustomer', methods=['POST'])
