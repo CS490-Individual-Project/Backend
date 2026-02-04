@@ -25,11 +25,7 @@ Landing Page (index.html)
 '''
 #As a user I want to view top 5 rented films of all times
 @app.route('/api/top5rented', methods=['GET'])
-<<<<<<< HEAD
-def get_top_5_rented():
-=======
 def get_top_five_rented():
->>>>>>> ad69106a2eaf5083fbde88e883347f83a380ec91
     #run sql query
     cursor.execute("""
         select f.film_id, f.title, count(f.film_id) as rental_count
