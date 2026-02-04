@@ -111,16 +111,21 @@ Films Page (films.html)
 #Feature 5: As a user I want to be able to search a film by name of film, name of an actor, or genre of the film
 @app.route('/api/searchfilms', methods=['GET'])
 def search_films(search_term):
-    query = """select * from sakila.films f
+    query = """select distinct f.film_id, f.title, f.description, f.release_year, f.rating, c.name as category,
+                    group_concat(distinct concat(a.first_name, ' ', a.last_name) separator ', ') as actors
+                from sakila.film f
                 join sakila.film_actor fa on f.film_id = fa.film_id
                 join sakila.actor a on fa.actor_id = a.actor_id
                 join sakila.film_category fc on f.film_id = fc.film_id
                 join sakila.category c on fc.category_id = c.category_id
-                where f.title = %s
-                or a.first_name = %s
-                or a.last_name = %s
-                or c.name = %s;"""
-
+                where f.title like %s
+                or a.first_name like %s
+                or a.last_name like %s
+                or c.name like %s
+                group by f.film_id, f.title, f.description, f.release_year, f.rating, c.name;"""
+    
+    #updated to allow partial matching
+    search_term = f"%{search_term}%"
     cursor.execute(query, (search_term, search_term, search_term, search_term))
 
     results = cursor.fetchall()
@@ -132,15 +137,9 @@ def search_films(search_term):
             'title': row[1],
             'description': row[2],
             'release_year': row[3],
-            'language_id': row[4],
-            'original_language_id': row[5],
-            'rental_duration': row[6],
-            'rental_rate': row[7],
-            'length': row[8],
-            'replacement_cost': row[9],
-            'rating': row[10],
-            'special_features': row[11],
-            'last_update': row[12],
+            'rating': row[4],
+            'category': row[5],
+            'actors': row[6]
         })
     return jsonify(films)
 
