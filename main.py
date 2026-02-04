@@ -222,8 +222,19 @@ def edit_customer():
 
 #As a user I want to be able to delete a customer if they no longer wish to patron at store
 @app.route('/api/deletecustomer', methods=['PUT'])
-def delete_customer():
-    pass
+def delete_customer(customer_id):
+    try:
+        query = """DELETE FROM sakila.customer WHERE customer_id = %s;"""
+
+        cursor.execute(query, (customer_id))
+
+        conn.commit()
+
+        return jsonify({'message': 'Customer deleted successfully'}), 200
+    except Exception as e:
+        # reset database if error occurs
+        conn.rollback()
+        return jsonify({'error': 'Error deleting customer. Please try again.'}), 500
 
 #As a user I want to be able to view customer details and see their past and present rental history
 @app.route('/api/get_customerdetails', methods=['GET'])
