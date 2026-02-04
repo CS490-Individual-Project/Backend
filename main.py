@@ -1,8 +1,10 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 import mysql.connector
 import os
 from dotenv import load_dotenv
+from datetime import datetime
+
 load_dotenv()
 
 app = Flask(__name__)
@@ -108,9 +110,41 @@ def search_customers():
     pass
 
 #As a user I want to be able to add a new customer
-@app.route('/api/add customer', methods=['PUT'])
+@app.route('/api/addcustomer', methods=['POST'])
 def add_customer():
-    pass
+    try:
+        # Get data from request body
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['store_id', 'first_name', 'last_name', 'email', 'address_id']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+        
+        create_date = data.get('create_date', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            
+        query = """INSERT INTO sakila.customer (store_id, first_name, last_name, email,
+                    address_id, create_date) VALUES (%s, %s, %s, %s, %s, %s)"""
+
+        cursor.execute(query, (
+            data['store_id'],
+            data['first_name'],
+            data['last_name'],
+            data['email'],
+            data['address_id'],
+            create_date
+        ))
+        
+        conn.commit()
+        
+        return jsonify({
+            'message': 'Customer added successfully',
+            'customer_id': cursor.lastrowid
+        }), 201
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': 'Error adding customer. Please try again.'}), 500
 
 #As a user I want to be able to edit a customer’s details
 @app.route('/api/editcustomer', methods=['PUT'])
