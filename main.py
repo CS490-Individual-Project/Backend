@@ -223,7 +223,29 @@ def get_film_details():
 #Feature 7: As a user I want to be able to rent a film out to a customer
 @app.route('/api/rentfilm', methods=['PUT'])
 def rent_film():
-    pass
+    try:
+        # Get data from request body
+        data = request.get_json()
+        required_fields = ['rental_date', 'inventory_id', 'customer_id', 'return_date']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing required field: {field}.'}), 400
+        query = """insert into sakila.rental (rental_date, inventory_id, customer_id, return_date, staff_id) 
+                   values (%s, %s, %s, %s, 1)"""
+        
+        cursor.execute(query, (
+            data['rental_date'],
+            data['inventory_id'],
+            data['customer_id'],
+            data['return_date']
+        ))
+        conn.commit()
+        return jsonify({'message': f'Film rented successfully to customer {data['customer_id']}'}), 200
+    
+    except Exception as e:
+        # reset database if error occurs
+        conn.rollback()
+        return jsonify({'error': 'Error! Unable to add customer.'}), 400
 
 '''
 Customer Page (customer.html)
