@@ -314,7 +314,7 @@ def add_customer():
         data = request.get_json()
         
         # Validate required fields
-        required_fields = ['store_id', 'first_name', 'last_name', 'email', 'address_id']
+        required_fields = ['first_name', 'last_name', 'email', 'address_id']
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
@@ -322,10 +322,9 @@ def add_customer():
         create_date = data.get('create_date', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
             
         query = """insert into sakila.customer (store_id, first_name, last_name, email,
-                   address_id, create_date) values (%s, %s, %s, %s, %s, %s)"""
+                   address_id, create_date) values (1, %s, %s, %s, %s, %s)"""
 
         cursor.execute(query, (
-            data['store_id'],
             data['first_name'],
             data['last_name'],
             data['email'],
