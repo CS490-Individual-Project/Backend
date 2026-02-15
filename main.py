@@ -218,21 +218,26 @@ def get_film_details():
     #store in results
     results = fetch_all(query, (film_id,))
 
+    if not results:
+        return jsonify({'error': 'Film not found'}), 404
+
+    row = results[0]
+
     #process results into json format
     films = [{
-        'film_id': results[0],
-        'title': results[1],
-        'description': results[2],
-        'release_year': results[3],
-        'language_id': results[4],
-        'original_language_id': results[5],
-        'rental_duration': results[6],
-        'rental_rate': results[7],
-        'length': results[8],
-        'replacement_cost': results[9],
-        'rating': results[10],
-        'special_features': results[11],
-        'last_update': results[12]
+        'film_id': row[0],
+        'title': row[1],
+        'description': row[2],
+        'release_year': row[3],
+        'language_id': row[4],
+        'original_language_id': row[5],
+        'rental_duration': row[6],
+        'rental_rate': row[7],
+        'length': row[8],
+        'replacement_cost': row[9],
+        'rating': row[10],
+        'special_features': sorted(list(row[11])) if isinstance(row[11], set) else row[11], #Convert python set to json list
+        'last_update': row[12]
     }]
 
     return jsonify(films)
