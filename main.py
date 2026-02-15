@@ -1,51 +1,87 @@
-from flask import Flask, jsonify, request, g
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 import mysql.connector
 import os
 from dotenv import load_dotenv
 from datetime import datetime
-from werkzeug.local import LocalProxy
 
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
-def get_db():
-    if 'db_conn' not in g:
-        g.db_conn = mysql.connector.connect(
-            host="localhost",
-            user="root",
-            password=os.getenv('MYSQL_DB_PASSWORD'),
-            database="sakila",
-            port=3306
-        )
-        g.db_cursor = g.db_conn.cursor()
-    return g.db_conn, g.db_cursor
+def create_connection():
+    return mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password=os.getenv('MYSQL_DB_PASSWORD'),
+        database="sakila",
+        port=3306,
+        ssl_disabled=True,
+        autocommit=False,
+        connection_timeout=10
+    )
 
 
-def _get_conn():
-    return get_db()[0]
+def fetch_all(query, params=None):
+    normalized_params = params if params is not None else ()
+    last_error = None
+
+    for _ in range(2):
+        conn = None
+        cursor = None
+        try:
+            conn = create_connection()
+            cursor = conn.cursor()
+            cursor.execute(query, normalized_params)
+            return cursor.fetchall()
+        except (mysql.connector.InterfaceError, mysql.connector.OperationalError) as error:
+            last_error = error
+        finally:
+            if cursor is not None:
+                try:
+                    cursor.close()
+                except mysql.connector.Error:
+                    pass
+            if conn is not None:
+                try:
+                    conn.close()
+                except mysql.connector.Error:
+                    pass
+
+    raise last_error
 
 
-def _get_cursor():
-    return get_db()[1]
+def execute_write(query, params=None):
+    normalized_params = params if params is not None else ()
+    last_error = None
 
+    for _ in range(2):
+        conn = None
+        cursor = None
+        try:
+            conn = create_connection()
+            cursor = conn.cursor()
+            cursor.execute(query, normalized_params)
+            conn.commit()
+            return cursor.lastrowid
+        except (mysql.connector.InterfaceError, mysql.connector.OperationalError) as error:
+            last_error = error
+            if conn is not None and conn.is_connected():
+                conn.rollback()
+        finally:
+            if cursor is not None:
+                try:
+                    cursor.close()
+                except mysql.connector.Error:
+                    pass
+            if conn is not None:
+                try:
+                    conn.close()
+                except mysql.connector.Error:
+                    pass
 
-conn = LocalProxy(_get_conn)
-cursor = LocalProxy(_get_cursor)
-
-
-@app.teardown_appcontext
-def close_db(error=None):
-    db_cursor = g.pop('db_cursor', None)
-    db_conn = g.pop('db_conn', None)
-
-    if db_cursor is not None:
-        db_cursor.close()
-
-    if db_conn is not None and db_conn.is_connected():
-        db_conn.close()
+    raise last_error
 
 '''
 Landing Page (index.html)
@@ -54,7 +90,8 @@ Landing Page (index.html)
 @app.route('/api/top5rented', methods=['GET'])
 def get_top_five_rented():
     #run sql query
-    cursor.execute("""
+    #store in results
+    results = fetch_all("""
         select f.film_id, f.title, count(f.film_id) as rental_count
         from sakila.rental r
         join sakila.inventory i on r.inventory_id = i.inventory_id 
@@ -62,8 +99,6 @@ def get_top_five_rented():
         group by f.film_id, f.title
         order by rental_count desc limit 5;
     """)
-    #store in results
-    results = cursor.fetchall()
 
     #process results into json format
     films = []
@@ -82,16 +117,14 @@ def get_top_five_rented():
 @app.route('/api/top5actors', methods=['GET'])
 def get_top_five_actors():
     #run sql query
-    cursor.execute("""
+    #store in results
+    results = fetch_all("""
         select a.actor_id, a.first_name, a.last_name, count(fa.film_id) as movies
         from sakila.film_actor fa 
         join sakila.actor a on fa.actor_id = a.actor_id
         group by a.actor_id 
         order by movies desc limit 5;
     """)
-
-    #store in results
-    results = cursor.fetchall()
 
     #process results into json format
     actors = []
@@ -106,9 +139,9 @@ def get_top_five_actors():
 #Feature 4: As a user I want to be able to view the actor’s details and view their top 5 rented films
 @app.route('/api/get_actordetails', methods=['GET'])
 def get_actor_details():
-    actor_id = request.args.get('actor_id', type=int)
+    actor_id = request.args.get('actor_id')
     if not actor_id:
-        return jsonify({'error': 'actor_id is required'}), 400
+        return jsonify({'error': 'Missing required query parameter: actor_id'}), 400
 
     query = """select actor.actor_id, actor.first_name, actor.last_name, film.title, count(rental.rental_id)
                 from sakila.actor
@@ -122,22 +155,16 @@ def get_actor_details():
             """
 
     #run sql query
-    cursor.execute(query, (actor_id,))
-
     #store in results
-    results = cursor.fetchall()
+    results = fetch_all(query, (actor_id,))
 
     #process results into json format
-    actor_details = []
-    for row in results:
-        actor_details.append({
-            'actor_id': row[0],
-            'first_name': row[1],
-            'last_name': row[2],
-            'title': row[3],
-            'rental_count': row[4]
-        })
-
+    actor_details = [{
+        'actor_id': results[0],
+        'first_name': results[1],
+        'last_name': results[2],
+        'title': results[3]
+    }]
     return jsonify(actor_details)
 
 '''
@@ -146,9 +173,7 @@ Films Page (films.html)
 #Feature 5: As a user I want to be able to search a film by name of film, name of an actor, or genre of the film
 @app.route('/api/searchfilms', methods=['GET'])
 def search_films():
-    search_term = request.args.get('search', '').strip()
-    if not search_term:
-        return jsonify([])
+    search_term = request.args.get('search', '')
 
     query = """select distinct f.film_id, f.title, f.description, f.release_year, f.rating, c.name as category,
                     group_concat(distinct concat(a.first_name, ' ', a.last_name) separator ', ') as actors
@@ -165,9 +190,7 @@ def search_films():
     
     #updated to allow partial matching
     search_term = f"%{search_term}%"
-    cursor.execute(query, (search_term, search_term, search_term, search_term))
-
-    results = cursor.fetchall()
+    results = fetch_all(query, (search_term, search_term, search_term, search_term))
 
     films = []
     for row in results:
@@ -185,37 +208,31 @@ def search_films():
 #Feature 6: As a user I want to be able to view details of the film
 @app.route('/api/get_filmdetails', methods=['GET'])
 def get_film_details():
-    film_id = request.args.get('film_id', type=int)
+    film_id = request.args.get('film_id')
     if not film_id:
-        return jsonify({'error': 'film_id is required'}), 400
+        return jsonify({'error': 'Missing required query parameter: film_id'}), 400
 
     query = """select * from sakila.film where film_id = %s;"""
 
     #run sql query
-    cursor.execute(query, (film_id,))
-
     #store in results
-    results = cursor.fetchall()
+    results = fetch_all(query, (film_id,))
 
     #process results into json format
-    if not results:
-        return jsonify({'error': 'Film not found'}), 404
-
-    row = results[0]
     films = [{
-        'film_id': row[0],
-        'title': row[1],
-        'description': row[2],
-        'release_year': row[3],
-        'language_id': row[4],
-        'original_language_id': row[5],
-        'rental_duration': row[6],
-        'rental_rate': row[7],
-        'length': row[8],
-        'replacement_cost': row[9],
-        'rating': row[10],
-        'special_features': row[11],
-        'last_update': row[12]
+        'film_id': results[0],
+        'title': results[1],
+        'description': results[2],
+        'release_year': results[3],
+        'language_id': results[4],
+        'original_language_id': results[5],
+        'rental_duration': results[6],
+        'rental_rate': results[7],
+        'length': results[8],
+        'replacement_cost': results[9],
+        'rating': results[10],
+        'special_features': results[11],
+        'last_update': results[12]
     }]
 
     return jsonify(films)
@@ -230,22 +247,22 @@ def rent_film():
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}.'}), 400
-        query = """insert into sakila.rental (rental_date, inventory_id, customer_id, return_date, staff_id) 
+
+        query = """insert into sakila.rental (rental_date, inventory_id, customer_id, return_date, staff_id)
                    values (%s, %s, %s, %s, 1)"""
-        
-        cursor.execute(query, (
+
+        execute_write(query, (
             data['rental_date'],
             data['inventory_id'],
             data['customer_id'],
             data['return_date']
         ))
-        conn.commit()
-        return jsonify({'message': f'Film rented successfully to customer {data['customer_id']}'}), 200
-    
+
+        return jsonify({'message': f"Film rented successfully to customer {data['customer_id']}"}), 200
+
     except Exception as e:
         # reset database if error occurs
-        conn.rollback()
-        return jsonify({'error': 'Error! Unable to add customer.'}), 400
+        return jsonify({'error': 'Error! Unable to rent film.'}), 400
 
 '''
 Customer Page (customer.html)
@@ -254,10 +271,8 @@ Customer Page (customer.html)
 @app.route('/api/allcustomers', methods=['GET'])
 def get_all_customers():
     #run sql query
-    cursor.execute("""select * from sakila.customer;""")
-
     #store in results
-    results = cursor.fetchall()
+    results = fetch_all("""select * from sakila.customer;""")
 
     #process results into json format
     customers = []
@@ -278,9 +293,7 @@ def get_all_customers():
 #Feature 9: As a user I want the ability to filter/search customers by their customer id, first name or last name.
 @app.route('/api/searchcustomers', methods=['GET'])
 def search_customers():
-    search_term = request.args.get('search', '').strip()
-    if not search_term:
-        return jsonify([])
+    search_term = request.args.get('search', '')
 
     query = """select * from sakila.customer
                 where customer_id like %s
@@ -288,9 +301,7 @@ def search_customers():
                 or last_name like %s;"""
 
     search_term = f"%{search_term}%"
-    cursor.execute(query, (search_term, search_term, search_term))
-
-    results = cursor.fetchall()
+    results = fetch_all(query, (search_term, search_term, search_term))
 
     customers = []
     for row in results:
@@ -314,7 +325,7 @@ def add_customer():
         data = request.get_json()
         
         # Validate required fields
-        required_fields = ['first_name', 'last_name', 'email', 'address_id']
+        required_fields = ['store_id', 'first_name', 'last_name', 'email', 'address_id']
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
@@ -322,9 +333,10 @@ def add_customer():
         create_date = data.get('create_date', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
             
         query = """insert into sakila.customer (store_id, first_name, last_name, email,
-                   address_id, create_date) values (1, %s, %s, %s, %s, %s)"""
+                   address_id, create_date) values (%s, %s, %s, %s, %s, %s)"""
 
-        cursor.execute(query, (
+        last_row_id = execute_write(query, (
+            data['store_id'],
             data['first_name'],
             data['last_name'],
             data['email'],
@@ -332,14 +344,11 @@ def add_customer():
             create_date
         ))
         
-        conn.commit()
-        
         return jsonify({
             'message': 'Customer added successfully',
-            'customer_id': cursor.lastrowid
+            'customer_id': last_row_id
         }), 201
     except Exception as e:
-        conn.rollback()
         return jsonify({'error': 'Error adding customer. Please try again.'}), 500
 
 #Feature 11: As a user I want to be able to edit a customer’s details
@@ -350,86 +359,49 @@ def edit_customer():
 #Feature 12: As a user I want to be able to delete a customer if they no longer wish to patron at store
 @app.route('/api/deletecustomer', methods=['PUT'])
 def delete_customer():
-    data = request.get_json(silent=True) or {}
-    customer_id = data.get('customer_id')
-    if customer_id is None:
-        customer_id = request.args.get('customer_id', type=int)
-
+    customer_id = request.args.get('customer_id')
     if not customer_id:
-        return jsonify({'error': 'customer_id is required'}), 400
+        return jsonify({'error': 'Missing required query parameter: customer_id'}), 400
 
     try:
         query = """delete from sakila.customer where customer_id = %s;"""
-
-        cursor.execute(query, (customer_id,))
-
-        conn.commit()
+        execute_write(query, (customer_id,))
 
         return jsonify({'message': 'Customer deleted successfully'}), 200
     except Exception as e:
-        # reset database if error occurs
-        conn.rollback()
         return jsonify({'error': 'Error deleting customer. Please try again.'}), 500
 
 #Feature 13: As a user I want to be able to view customer details and see their past and present rental history
 @app.route('/api/get_customerdetails', methods=['GET'])
 def get_customer_details():
-    customer_id = request.args.get('customer_id', type=int)
+    customer_id = request.args.get('customer_id')
     if not customer_id:
-        return jsonify({'error': 'customer_id is required'}), 400
+        return jsonify({'error': 'Missing required query parameter: customer_id'}), 400
 
-    query = """select * from sakila.customer where customer_id = %s;"""
+    query = """select * from sakila.film where film_id = %s;"""
 
     #run sql query
-    cursor.execute(query, (customer_id,))
-
     #store in results
-    results = cursor.fetchall()
+    results = fetch_all(query, (customer_id,))
 
     #process results into json format
-    if not results:
-        return jsonify({'error': 'Customer not found'}), 404
-
-    row = results[0]
     customer_details = [{
-        'customer_id': row[0],
-        'store_id': row[1],
-        'first_name': row[2],
-        'last_name': row[3],
-        'email': row[4],
-        'address_id': row[5],
-        'active': row[6] == 1,
-        'create_date': row[7],
-        'last_update': row[8]
+        'customer_id': results[0],
+        'store_id': results[1],
+        'first_name': results[2],
+        'last_name': results[3],
+        'email': results[4],
+        'address': results[5],
+        'active': results[6] == 1,
+        'create_date': results[7],
+        'last_update': results[8]
     }]
     return jsonify(customer_details)
 
 #Feature 14: As a user I want to be able to indicate that a customer has returned a rented movie 
 @app.route('/api/returnfilm', methods=['PUT'])
 def return_film():
-    try:
-        data = request.get_json()
-
-        required_fields = ['rental_id', 'return_date']
-
-        for field in required_fields:
-            if field not in data:
-                return jsonify({'error': f'Missing required field: {field}'}), 400
-            
-        query = """update sakila.rental set return_date = %s where rental_id = %s;"""
-
-        cursor.execute(query, (
-            data['return_date'],
-            data['rental_id']
-        ))
-
-        conn.commit()
-
-        return jsonify({'message': 'Film returned successfully :)'}), 200
-    except Exception as e:
-        conn.rollback()
-        return jsonify({'error': 'Error! Unable to return film.'}), 400
-
+    pass
 
 
 if __name__ == '__main__':
