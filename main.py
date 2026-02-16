@@ -158,13 +158,20 @@ def get_actor_details():
     #store in results
     results = fetch_all(query, (actor_id,))
 
+    if not results:
+        return jsonify([])
+
     #process results into json format
-    actor_details = [{
-        'actor_id': results[0],
-        'first_name': results[1],
-        'last_name': results[2],
-        'title': results[3]
-    }]
+    actor_details = []
+    for row in results:
+        actor_details.append({
+            'actor_id': row[0],
+            'first_name': row[1],
+            'last_name': row[2],
+            'title': row[3],
+            'rental_count': row[4]
+        })
+
     return jsonify(actor_details)
 
 '''
