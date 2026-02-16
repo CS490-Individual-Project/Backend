@@ -265,19 +265,28 @@ def rent_film():
     try:
         # Get data from request body
         data = request.get_json()
-        required_fields = ['rental_date', 'inventory_id', 'customer_id', 'return_date']
+        required_fields = ['rental_date', 'film_id', 'customer_id']
+        
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}.'}), 400
 
+        inventory_rows = fetch_all("""select inventory_id from sakila.inventory where film_id = %s;""", (data['film_id'],))
+        inventory_id = None
+        for row in inventory_rows:
+            if not fetch_all("""select rental_id from sakila.rental where inventory_id = %s and return_date is null limit 1;""", (row[0],)):
+                inventory_id = row[0]
+                break
+        if inventory_id is None:
+            return jsonify({'error': 'No inventory available.'}), 400
+        
         query = """insert into sakila.rental (rental_date, inventory_id, customer_id, return_date, staff_id)
-                   values (%s, %s, %s, %s, 1)"""
+                   values (%s, %s, %s, NULL, 1)"""
 
         execute_write(query, (
             data['rental_date'],
-            data['inventory_id'],
-            data['customer_id'],
-            data['return_date']
+            inventory_id,
+            data['customer_id']
         ))
 
         return jsonify({'message': f"Film rented successfully to customer {data['customer_id']}"}), 200
