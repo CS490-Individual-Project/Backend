@@ -436,8 +436,35 @@ def get_customer_details():
 #Feature 14: As a user I want to be able to indicate that a customer has returned a rented movie 
 @app.route('/api/returnfilm', methods=['PUT'])
 def return_film():
-    pass
+    try:
+        data = request.get_json()
+        required_fields = ['customer_id', 'rental_id']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
 
+        # check validity of rental_id
+        if not data['rental_id'] or not data['rental_id'].isdigit():
+            return jsonify({'error': 'Invalid input for rental_id.'}), 400
+        
+        # check if rental exists
+        existing_rental = fetch_all("""select rental_id from sakila.rental where rental_id = %s
+                                        and customer_id = %s
+                                        and return_date is null limit 1;""",
+                                        (data['rental_id'], data['customer_id']))
+
+        if not existing_rental:
+            return jsonify({'error': 'Rental does not exist or is already returned.'}), 400
+
+        query = """update sakila.rental set return_date = %s where rental_id = %s;"""
+        execute_write(query, (
+            datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            data['rental_id']
+        ))
+
+        return jsonify({'message': 'Film returned successfully'}), 200
+    except Exception as e:
+        return jsonify({'error': 'Error returning film. Please try again.'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
