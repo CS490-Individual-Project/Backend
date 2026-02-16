@@ -182,6 +182,9 @@ Films Page (films.html)
 def search_films():
     search_term = request.args.get('search', '')
 
+    if not search_term or not search_term.isalnum():
+        return jsonify({'error': 'Invalid search term. Please enter a valid search term.'}), 400
+
     query = """select distinct f.film_id, f.title, f.description, f.release_year, f.rating, c.name as category,
                     group_concat(distinct concat(a.first_name, ' ', a.last_name) separator ', ') as actors
                 from sakila.film f
