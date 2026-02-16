@@ -212,7 +212,13 @@ def get_film_details():
     if not film_id:
         return jsonify({'error': 'Missing required query parameter: film_id'}), 400
 
-    query = """select * from sakila.film where film_id = %s;"""
+    query = """select f.film_id, f.title, f.description, f.release_year, f.language_id,
+                    f.original_language_id, f.rental_duration, f.rental_rate, f.length,
+                    f.replacement_cost, f.rating, f.special_features, f.last_update,
+                    l.name as language_name
+                from sakila.film f
+                join sakila.language l on f.language_id = l.language_id
+                where f.film_id = %s;"""
 
     #run sql query
     #store in results
@@ -237,7 +243,8 @@ def get_film_details():
         'replacement_cost': row[9],
         'rating': row[10],
         'special_features': sorted(list(row[11])) if isinstance(row[11], set) else row[11], #Convert python set to json list
-        'last_update': row[12]
+        'last_update': row[12],
+        'language': row[13]
     }]
 
     return jsonify(films)
