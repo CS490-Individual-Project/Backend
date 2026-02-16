@@ -395,6 +395,10 @@ def delete_customer():
         return jsonify({'error': 'Missing required query parameter: customer_id'}), 400
 
     try:
+        active_rentals = fetch_all("""select rental_id from sakila.rental where customer_id = %s and return_date is null limit 1;""", (customer_id,))
+        if active_rentals:
+            return jsonify({'error': 'Customer has active rentals. Cannot delete.'}), 400
+
         query = """delete from sakila.customer where customer_id = %s;"""
         execute_write(query, (customer_id,))
 
