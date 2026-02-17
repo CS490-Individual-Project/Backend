@@ -92,11 +92,26 @@ def get_top_five_rented():
     #run sql query
     #store in results
     results = fetch_all("""
-        select f.film_id, f.title, count(f.film_id) as rental_count
+        select f.film_id,
+               f.title,
+               count(f.film_id) as rental_count,
+               coalesce(inv.total_copies, 0) - coalesce(active.checked_out, 0) as available_copies
         from sakila.rental r
-        join sakila.inventory i on r.inventory_id = i.inventory_id 
+        join sakila.inventory i on r.inventory_id = i.inventory_id
         join sakila.film f on i.film_id = f.film_id
-        group by f.film_id, f.title
+        left join (
+            select film_id, count(*) as total_copies
+            from sakila.inventory
+            group by film_id
+        ) inv on inv.film_id = f.film_id
+        left join (
+            select i2.film_id, count(*) as checked_out
+            from sakila.rental r2
+            join sakila.inventory i2 on r2.inventory_id = i2.inventory_id
+            where r2.return_date is null
+            group by i2.film_id
+        ) active on active.film_id = f.film_id
+        group by f.film_id, f.title, inv.total_copies, active.checked_out
         order by rental_count desc limit 5;
     """)
 
@@ -106,7 +121,8 @@ def get_top_five_rented():
         films.append({
             'film_id': row[0],
             'title': row[1],
-            'rental_count': row[2]
+            'rental_count': row[2],
+            'available_copies': row[3]
         })
     return jsonify(films)
 
@@ -180,23 +196,41 @@ Films Page (films.html)
 #Feature 5: As a user I want to be able to search a film by name of film, name of an actor, or genre of the film
 @app.route('/api/searchfilms', methods=['GET'])
 def search_films():
-    search_term = request.args.get('search', '')
+    search_term = request.args.get('search', '').strip()
 
-    if not search_term or not search_term.isalnum():
+    if not search_term:
         return jsonify({'error': 'Invalid search term. Please enter a valid search term.'}), 400
 
-    query = """select distinct f.film_id, f.title, f.description, f.release_year, f.rating, c.name as category,
-                    group_concat(distinct concat(a.first_name, ' ', a.last_name) separator ', ') as actors
+    query = """select f.film_id,
+                    f.title,
+                    f.description,
+                    f.release_year,
+                    f.rating,
+                    group_concat(distinct c.name separator ', ') as categories,
+                    group_concat(distinct concat(a.first_name, ' ', a.last_name) separator ', ') as actors,
+                    coalesce(inv.total_copies, 0) - coalesce(active.checked_out, 0) as available_copies
                 from sakila.film f
                 join sakila.film_actor fa on f.film_id = fa.film_id
                 join sakila.actor a on fa.actor_id = a.actor_id
                 join sakila.film_category fc on f.film_id = fc.film_id
                 join sakila.category c on fc.category_id = c.category_id
+                left join (
+                    select film_id, count(*) as total_copies
+                    from sakila.inventory
+                    group by film_id
+                ) inv on inv.film_id = f.film_id
+                left join (
+                    select i2.film_id, count(*) as checked_out
+                    from sakila.rental r2
+                    join sakila.inventory i2 on r2.inventory_id = i2.inventory_id
+                    where r2.return_date is null
+                    group by i2.film_id
+                ) active on active.film_id = f.film_id
                 where f.title like %s
                 or a.first_name like %s
                 or a.last_name like %s
                 or c.name like %s
-                group by f.film_id, f.title, f.description, f.release_year, f.rating, c.name;"""
+                group by f.film_id, f.title, f.description, f.release_year, f.rating, inv.total_copies, active.checked_out;"""
     
     #updated to allow partial matching
     search_term = f"%{search_term}%"
@@ -210,8 +244,9 @@ def search_films():
             'description': row[2],
             'release_year': row[3],
             'rating': row[4],
-            'category': row[5],
-            'actors': row[6]
+            'categories': row[5],
+            'actors': row[6],
+            'available_copies': row[7]
         })
     return jsonify(films)
 
@@ -263,20 +298,55 @@ def get_film_details():
 @app.route('/api/rentfilm', methods=['PUT'])
 def rent_film():
     try:
-        # Get data from request body
-        data = request.get_json()
-        required_fields = ['rental_date', 'film_id', 'customer_id']
-        
-        for field in required_fields:
-            if field not in data:
-                return jsonify({'error': f'Missing required field: {field}.'}), 400
+        data = request.get_json(silent=True) or {}
+        rental_date = data.get('rental_date')
+        film_id = data.get('film_id')
+        customer_id = data.get('customer_id')
+        first_name = (data.get('first_name') or '').strip()
+        last_name = (data.get('last_name') or '').strip()
 
-        inventory_rows = fetch_all("""select inventory_id from sakila.inventory where film_id = %s;""", (data['film_id'],))
+        if not rental_date:
+            return jsonify({'error': 'Missing required field: rental_date.'}), 400
+
+        if not film_id:
+            return jsonify({'error': 'Missing required field: film_id.'}), 400
+
+        if customer_id:
+            customer_rows = fetch_all(
+                """select customer_id from sakila.customer where customer_id = %s and active = 1 limit 1;""",
+                (customer_id,)
+            )
+            if not customer_rows:
+                return jsonify({'error': 'Customer not found or inactive.'}), 400
+            resolved_customer_id = customer_rows[0][0]
+        else:
+            if not first_name or not last_name:
+                return jsonify({'error': 'Provide either customer_id or both first_name and last_name.'}), 400
+
+            matching_customers = fetch_all(
+                """select customer_id from sakila.customer
+                    where lower(first_name) = lower(%s)
+                    and lower(last_name) = lower(%s)
+                    and active = 1
+                    order by customer_id;""",
+                (first_name, last_name)
+            )
+
+            if not matching_customers:
+                return jsonify({'error': 'No active customer found with that first and last name.'}), 400
+
+            if len(matching_customers) > 1:
+                return jsonify({'error': 'Multiple active customers found with that name. Please use customer_id.'}), 400
+
+            resolved_customer_id = matching_customers[0][0]
+
+        inventory_rows = fetch_all("""select inventory_id from sakila.inventory where film_id = %s;""", (film_id,))
         inventory_id = None
         for row in inventory_rows:
             if not fetch_all("""select rental_id from sakila.rental where inventory_id = %s and return_date is null limit 1;""", (row[0],)):
                 inventory_id = row[0]
                 break
+
         if inventory_id is None:
             return jsonify({'error': 'No inventory available.'}), 400
         
@@ -284,15 +354,14 @@ def rent_film():
                    values (%s, %s, %s, NULL, 1)"""
 
         execute_write(query, (
-            data['rental_date'],
+            rental_date,
             inventory_id,
-            data['customer_id']
+            resolved_customer_id
         ))
 
-        return jsonify({'message': f"Film rented successfully to customer {data['customer_id']}"}), 200
+        return jsonify({'message': f"Film rented successfully to customer {resolved_customer_id}"}), 200
 
-    except Exception as e:
-        # reset database if error occurs
+    except Exception:
         return jsonify({'error': 'Error! Unable to rent film.'}), 400
 
 '''
