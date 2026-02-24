@@ -482,24 +482,42 @@ def get_customer_details():
     if not customer_id:
         return jsonify({'error': 'Missing required query parameter: customer_id'}), 400
 
-    query = """select * from sakila.film where film_id = %s;"""
+    # Updated query to get customer info and active rentals
+    combined_query = """
+        select c.customer_id, c.store_id, c.first_name, c.last_name, c.email, c.address_id, c.active, c.create_date, c.last_update,
+               r.rental_id, f.title as film_name
+        from sakila.customer c
+        left join sakila.rental r on c.customer_id = r.customer_id and r.return_date is null
+        left join sakila.inventory i on r.inventory_id = i.inventory_id
+        left join sakila.film f on i.film_id = f.film_id
+        where c.customer_id = %s
+        order by r.rental_id desc;
+    """
+    results = fetch_all(combined_query, (customer_id,))
+    if not results:
+        return jsonify({'error': 'Customer not found'}), 404
 
-    #run sql query
-    #store in results
-    results = fetch_all(query, (customer_id,))
+    # get customer info from 1st row
+    row = results[0]
+    customer_details = {
+        'customer_id': row[0],
+        'store_id': row[1],
+        'first_name': row[2],
+        'last_name': row[3],
+        'email': row[4],
+        'address': row[5],
+        'active': row[6] == 1,
+        'create_date': row[7],
+        'last_update': row[8]
+    }
 
-    #process results into json format
-    customer_details = [{
-        'customer_id': results[0],
-        'store_id': results[1],
-        'first_name': results[2],
-        'last_name': results[3],
-        'email': results[4],
-        'address': results[5],
-        'active': results[6] == 1,
-        'create_date': results[7],
-        'last_update': results[8]
-    }]
+    # if there are active rentals append them
+    active_rentals_list = []
+    for r in results:
+        if r[9] is not None and r[10] is not None:
+            active_rentals_list.append(f"{r[10]} ({r[9]})")
+
+    customer_details['active_rentals'] = ', '.join(active_rentals_list)
     return jsonify(customer_details)
 
 #Feature 14: As a user I want to be able to indicate that a customer has returned a rented movie 
