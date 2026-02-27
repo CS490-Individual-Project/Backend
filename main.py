@@ -454,7 +454,41 @@ def add_customer():
 #Feature 11: As a user I want to be able to edit a customer’s details
 @app.route('/api/editcustomer', methods=['PUT'])
 def edit_customer():
-    pass
+    try:
+        data = request.get_json()
+        
+        # Requires customer_id to know which customer to edit
+        if 'customer_id' not in data:
+            return jsonify({'error': 'Missing required field: customer_id'}), 400
+            
+        customer_id = data['customer_id']
+        
+        # Build dynamic query based on fields provided
+        update_fields = []
+        params = []
+        
+        allowed_fields = ['first_name', 'last_name', 'email', 'active']
+        
+        for field in allowed_fields:
+            if field in data:
+                update_fields.append(f"{field} = %s")
+                params.append(data[field])
+                
+        if not update_fields:
+            return jsonify({'error': 'No fields provided to update.'}), 400
+            
+        # Add timestamp for last_update implicitly if not in data maybe? Or just use NOW()
+        # sakila triggers typically update last_update automatically, but let's be safe
+        
+        query = f"update sakila.customer set {', '.join(update_fields)} where customer_id = %s"
+        params.append(customer_id)
+        
+        execute_write(query, tuple(params))
+        
+        return jsonify({'message': 'Customer updated successfully', 'customer_id': customer_id}), 200
+        
+    except Exception as e:
+        return jsonify({'error': 'Error updating customer. Please try again.'}), 500
 
 #Feature 12: As a user I want to be able to delete a customer if they no longer wish to patron at store
 @app.route('/api/deletecustomer', methods=['PUT'])
