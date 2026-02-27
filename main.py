@@ -467,7 +467,7 @@ def edit_customer():
         update_fields = []
         params = []
         
-        allowed_fields = ['first_name', 'last_name', 'email', 'active']
+        allowed_fields = ['first_name', 'last_name', 'email']
         
         for field in allowed_fields:
             if field in data:
