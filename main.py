@@ -350,6 +350,10 @@ def rent_film():
         if inventory_id is None:
             return jsonify({'error': 'No inventory available.'}), 400
         
+        # Fetch customer name for message
+        customer_name_rows = fetch_all("""select first_name, last_name from sakila.customer where customer_id = %s;""", (resolved_customer_id,))
+        customer_name = f"{customer_name_rows[0][0]} {customer_name_rows[0][1]}" if customer_name_rows else "Customer"
+        
         query = """insert into sakila.rental (rental_date, inventory_id, customer_id, return_date, staff_id)
                    values (%s, %s, %s, NULL, 1)"""
 
@@ -359,7 +363,7 @@ def rent_film():
             resolved_customer_id
         ))
 
-        return jsonify({'message': f"Film rented successfully to customer {resolved_customer_id}"}), 200
+        return jsonify({'message': f"Film rented successfully to {customer_name} ({resolved_customer_id})"}), 200
 
     except Exception:
         return jsonify({'error': 'Error! Unable to rent film.'}), 400
@@ -476,9 +480,6 @@ def edit_customer():
                 
         if not update_fields:
             return jsonify({'error': 'No fields provided to update.'}), 400
-            
-        # Add timestamp for last_update implicitly if not in data maybe? Or just use NOW()
-        # sakila triggers typically update last_update automatically, but let's be safe
         
         query = f"update sakila.customer set {', '.join(update_fields)} where customer_id = %s"
         params.append(customer_id)
