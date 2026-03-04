@@ -516,23 +516,17 @@ def get_customer_details():
     if not customer_id:
         return jsonify({'error': 'Missing required query parameter: customer_id'}), 400
 
-    # Updated query to get customer info and active rentals
-    combined_query = """
-        select c.customer_id, c.store_id, c.first_name, c.last_name, c.email, c.address_id, c.active, c.create_date, c.last_update,
-               r.rental_id, f.title as film_name
+    # Get customer info
+    customer_query = """
+        select c.customer_id, c.store_id, c.first_name, c.last_name, c.email, c.address_id, c.active, c.create_date, c.last_update
         from sakila.customer c
-        left join sakila.rental r on c.customer_id = r.customer_id and r.return_date is null
-        left join sakila.inventory i on r.inventory_id = i.inventory_id
-        left join sakila.film f on i.film_id = f.film_id
-        where c.customer_id = %s
-        order by r.rental_id desc;
+        where c.customer_id = %s;
     """
-    results = fetch_all(combined_query, (customer_id,))
-    if not results:
+    customer_results = fetch_all(customer_query, (customer_id,))
+    if not customer_results:
         return jsonify({'error': 'Customer not found'}), 404
 
-    # get customer info from 1st row
-    row = results[0]
+    row = customer_results[0]
     customer_details = {
         'customer_id': row[0],
         'store_id': row[1],
@@ -545,13 +539,32 @@ def get_customer_details():
         'last_update': row[8]
     }
 
-    # if there are active rentals append them
-    active_rentals_list = []
-    for r in results:
-        if r[9] is not None and r[10] is not None:
-            active_rentals_list.append(f"{r[10]} ({r[9]})")
+    # Get active rentals
+    active_rentals_query = """
+        select f.title, r.rental_id
+        from sakila.rental r
+        join sakila.inventory i on r.inventory_id = i.inventory_id
+        join sakila.film f on i.film_id = f.film_id
+        where r.customer_id = %s and r.return_date is null
+        order by r.rental_id desc;
+    """
+    active_results = fetch_all(active_rentals_query, (customer_id,))
+    active_rentals_list = [f"{row[0]} ({row[1]})" for row in active_results]
+    customer_details['active_rentals'] = ', '.join(active_rentals_list) if active_rentals_list else ''
 
-    customer_details['active_rentals'] = ', '.join(active_rentals_list)
+    # Get past rentals
+    past_rentals_query = """
+        select f.title, r.return_date
+        from sakila.rental r
+        join sakila.inventory i on r.inventory_id = i.inventory_id
+        join sakila.film f on i.film_id = f.film_id
+        where r.customer_id = %s and r.return_date is not null
+        order by r.return_date desc;
+    """
+    past_results = fetch_all(past_rentals_query, (customer_id,))
+    past_rentals_list = [f"{row[0]} ({str(row[1]).split()[0]})" for row in past_results]
+    customer_details['past_rentals'] = ', '.join(past_rentals_list) if past_rentals_list else ''
+
     return jsonify(customer_details)
 
 #Feature 14: As a user I want to be able to indicate that a customer has returned a rented movie 
