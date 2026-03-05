@@ -397,12 +397,16 @@ def get_all_customers():
 #Feature 9: As a user I want the ability to filter/search customers by their customer id, first name or last name.
 @app.route('/api/searchcustomers', methods=['GET'])
 def search_customers():
-    search_term = request.args.get('search', '')
+    search_term = request.args.get('search', '').strip()
 
-    query = """select * from sakila.customer
-                where customer_id like %s
-                or first_name like %s
-                or last_name like %s;"""
+    if not search_term:
+        return jsonify({'error': 'Invalid search term. Please enter a valid search term.'}), 400
+
+    query = """select customer_id, store_id, first_name, last_name, email, address_id, active, create_date, last_update
+                from sakila.customer
+                where cast(customer_id as char) like %s
+                or lower(first_name) like lower(%s)
+                or lower(last_name) like lower(%s);"""
 
     search_term = f"%{search_term}%"
     results = fetch_all(query, (search_term, search_term, search_term))
@@ -412,7 +416,8 @@ def search_customers():
         customers.append({
             'customer_id': row[0],
             'store_id': row[1],
-            'name': row[2] + ' ' + row[3],
+            'first_name': row[2],
+            'last_name': row[3],
             'email': row[4],
             'address': row[5],
             'active': row[6] == 1,
@@ -425,14 +430,14 @@ def search_customers():
 @app.route('/api/addcustomer', methods=['POST'])
 def add_customer():
     try:
-        # Get data from request body
         data = request.get_json()
         
-        # Validate required fields
-        required_fields = ['store_id', 'first_name', 'last_name', 'email', 'address_id']
+        required_fields = ['first_name', 'last_name', 'email', 'address_id']
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
+
+        store_id = data.get('store_id', 1)
         
         create_date = data.get('create_date', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
             
@@ -440,7 +445,7 @@ def add_customer():
                    address_id, create_date) values (%s, %s, %s, %s, %s, %s)"""
 
         last_row_id = execute_write(query, (
-            data['store_id'],
+            store_id,
             data['first_name'],
             data['last_name'],
             data['email'],
